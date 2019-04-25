@@ -32,7 +32,7 @@ use SAML2\Signature\Validator;
  *
  * This is an excellent candidate for refactoring towards dependency injection
  */
-class ProcessorBuilder
+class ProcessorBuilder implements ProcessorBuilderInterface
 {
     /**
      * @param LoggerInterface $logger
@@ -43,7 +43,7 @@ class ProcessorBuilder
      * @param Response $response
      * @return Processor
      */
-    public static function build(
+    public function build(
         LoggerInterface $logger,
         Validator $signatureValidator,
         Destination $currentDestination,

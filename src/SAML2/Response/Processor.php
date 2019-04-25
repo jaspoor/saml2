@@ -7,6 +7,7 @@ namespace SAML2\Response;
 use Psr\Log\LoggerInterface;
 
 use SAML2\Assertion\ProcessorBuilder;
+use SAML2\Assertion\ProcessorBuilderInterface;
 use SAML2\Configuration\Destination;
 use SAML2\Configuration\IdentityProvider;
 use SAML2\Configuration\ServiceProvider;
@@ -16,6 +17,7 @@ use SAML2\Response\Exception\NoAssertionsFoundException;
 use SAML2\Response\Exception\PreconditionNotMetException;
 use SAML2\Response\Exception\UnsignedResponseException;
 use SAML2\Response\Validation\PreconditionValidator;
+use SAML2\Response\Validation\Validator as ResponseValidator;
 use SAML2\Signature\Validator;
 use SAML2\Utilities\ArrayCollection;
 
@@ -49,34 +51,44 @@ class Processor
      */
     private $responseIsSigned = false;
 
+    /**
+     * @var \SAML2\Assertion\ProcessorBuilderInterface
+     */
+    private $processorBuilder;
 
     /**
-     * @param \Psr\Log\LoggerInterface $logger
-     *
+     * @param \Psr\Log\LoggerInterface                       $logger
+     * @param \SAML2\Assertion\ProcessorBuilderInterface|null $processorBuilder
      */
-    public function __construct(LoggerInterface $logger)
-    {
+    public function __construct(
+        LoggerInterface $logger,
+        ProcessorBuilderInterface $processorBuilder = null
+    ) {
         $this->logger = $logger;
         $this->signatureValidator = new Validator($logger);
+        $this->processorBuilder = $processorBuilder ?: new ProcessorBuilder();
     }
 
 
     /**
-     * @param \SAML2\Configuration\ServiceProvider  $serviceProviderConfiguration
-     * @param \SAML2\Configuration\IdentityProvider $identityProviderConfiguration
-     * @param \SAML2\Configuration\Destination $currentDestination
-     * @param \SAML2\Response $response
+     * @param \SAML2\Configuration\ServiceProvider      $serviceProviderConfiguration
+     * @param \SAML2\Configuration\IdentityProvider     $identityProviderConfiguration
+     * @param \SAML2\Configuration\Destination          $currentDestination
+     * @param \SAML2\Response                           $response
      *
-     * @return \SAML2\Utilities\ArrayCollection Collection of \SAML2\Assertion objects
+     * @param \SAML2\Response\Validation\Validator|null $preconditionValidator
+     *
+     * @return \SAML2\Utilities\ArrayCollection
      */
     public function process(
         ServiceProvider $serviceProviderConfiguration,
         IdentityProvider $identityProviderConfiguration,
         Destination $currentDestination,
-        Response $response
+        Response $response,
+        ResponseValidator $preconditionValidator = null
     ) : ArrayCollection {
-        $this->preconditionValidator = new PreconditionValidator($currentDestination);
-        $this->assertionProcessor = ProcessorBuilder::build(
+        $this->preconditionValidator = $preconditionValidator ?: new PreconditionValidator($currentDestination);
+        $this->assertionProcessor = $this->processorBuilder->build(
             $this->logger,
             $this->signatureValidator,
             $currentDestination,

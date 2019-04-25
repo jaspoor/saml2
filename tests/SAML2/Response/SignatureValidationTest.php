@@ -10,6 +10,7 @@ use SAML2\Configuration\Destination;
 use SAML2\Configuration\IdentityProvider;
 use SAML2\Configuration\ServiceProvider;
 use SAML2\Response;
+use SAML2\Response\Validation\Result;
 use SAML2\Utilities\ArrayCollection;
 use SAML2\Utilities\Certificate;
 use SAML2\Response\Exception\UnsignedResponseException;
@@ -52,7 +53,7 @@ class SignatureValidationTest extends \Mockery\Adapter\Phpunit\MockeryTestCase
      */
     public function setUp() : void
     {
-        $this->assertionProcessorBuilder = \Mockery::mock('alias:SAML2\Assertion\ProcessorBuilder');
+        $this->assertionProcessorBuilder = \Mockery::mock('overload:SAML2\Assertion\ProcessorBuilder');
         $this->assertionProcessor = \Mockery::mock(Assertion\Processor::class);
         $this->assertionProcessorBuilder
             ->shouldReceive('build')
@@ -167,6 +168,69 @@ class SignatureValidationTest extends \Mockery\Adapter\Phpunit\MockeryTestCase
             $this->identityProviderConfiguration,
             new Destination($this->currentDestination),
             $this->getUnsignedResponseWithUnsignedAssertion()
+        );
+    }
+
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     * @return void
+     */
+    public function testThatAnResponseCanBeValidatedSuccessfullyWithACustomPreconditionValidator() : void
+    {
+        $this->assertionProcessor->shouldReceive('decryptAssertions')
+            ->once()
+            ->andReturn(new ArrayCollection());
+
+        $this->assertionProcessor->shouldReceive('processAssertions')->once();
+
+        $processor = new Response\Processor(new \Psr\Log\NullLogger());
+
+        $customPreconditionValidator = \Mockery::mock('SAML2\Response\Validation\Validator');
+
+        $resultWithoutErrors = new Result;
+
+        $customPreconditionValidator->shouldReceive('validate')
+            ->once()
+            ->andReturn($resultWithoutErrors);
+
+        $processor->process(
+            $this->serviceProviderConfiguration,
+            $this->identityProviderConfiguration,
+            new Destination($this->currentDestination),
+            $this->getSignedResponseWithSignedAssertion(),
+            $customPreconditionValidator
+        );
+    }
+
+
+    /**
+     * @runInSeparateProcess
+     * @preserveGlobalState disabled
+     * @return void
+     */
+    public function testThatAnResponseThatIsNotValidUsingACustomPreconditionValidatorThrowsAnException() : void
+    {
+        $this->expectException(Response\Exception\PreconditionNotMetException::class);
+
+        $processor = new Response\Processor(new \Psr\Log\NullLogger());
+
+        $customPreconditionValidator = \Mockery::mock('SAML2\Response\Validation\Validator');
+
+        $resultWithErrors = new Result;
+        $resultWithErrors->addError('some error');
+
+        $customPreconditionValidator->shouldReceive('validate')
+            ->once()
+            ->andReturn($resultWithErrors);
+
+        $processor->process(
+            $this->serviceProviderConfiguration,
+            $this->identityProviderConfiguration,
+            new Destination($this->currentDestination),
+            $this->getSignedResponseWithSignedAssertion(),
+            $customPreconditionValidator
         );
     }
 
